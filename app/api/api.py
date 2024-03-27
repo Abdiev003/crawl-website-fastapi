@@ -6,13 +6,15 @@ from app.types.url_input import UrlInput
 
 link_count = 0
 stop_loading = False
-stop_limit_count = 100
+stop_max_links = 10
+stop_max_characters = 400000
 
 
 def custom_extractor(html_content):
     global link_count
     global stop_loading
-    global stop_limit_count
+    global stop_max_links
+    global stop_max_characters
 
     # XML dosyası kontrolü
     if html_content.strip().startswith('<?xml'):
@@ -20,7 +22,7 @@ def custom_extractor(html_content):
 
     soup = Soup(html_content, "html.parser")
 
-    if link_count == stop_limit_count:
+    if link_count == stop_max_links or len(soup.text) > stop_max_characters:
         stop_loading = True
 
     if stop_loading:
@@ -32,6 +34,16 @@ def custom_extractor(html_content):
 
 
 def load_url(url_input: UrlInput):
+    global stop_max_links
+    global stop_max_characters
+
+    if url_input.is_free:
+        stop_max_links = 2
+        stop_max_characters = 400000
+    else:
+        stop_max_links = float('inf')
+        stop_max_characters = 11000000
+
     exclude_dirs = (f'{url_input.url}wp-content/', f'{url_input.url}wp-includes/',
                     f'{url_input.url}wp-json/', f'{url_input.url}comments/', f'{url_input.url}category/', f'{url_input.url}feed/')
 
@@ -44,6 +56,8 @@ def load_url(url_input: UrlInput):
         docs = loader.lazy_load()
 
         updated_docs = []
+        total_character_count = 0
+
         for doc in docs:
             doc_dict = doc.__dict__
 
@@ -51,6 +65,8 @@ def load_url(url_input: UrlInput):
                 'page_content', '').replace('\n', '').replace('\r', '')
 
             character_count = len(doc_dict.get('page_content', ''))
+            total_character_count += character_count
+
             doc_dict['character_count'] = character_count
 
             updated_docs.append(doc_dict)
